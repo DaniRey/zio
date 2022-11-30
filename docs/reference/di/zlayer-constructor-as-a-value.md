@@ -285,10 +285,10 @@ Here is another example that uses auto closeable resources:
 import zio._
 import scala.io.BufferedSource
 
-val fileLayer: ZLayer[Any, Throwable, BufferedSource] =
+val fileLayer: ZLayer[Any, IOException, BufferedSource] =
   ZLayer.scoped {
     ZIO.fromAutoCloseable(
-      ZIO.attempt(scala.io.Source.fromFile("file.txt"))
+      ZIO.attemptBlockingIO(scala.io.Source.fromFile("file.txt"))
     )
   }
 ```
