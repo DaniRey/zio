@@ -166,7 +166,7 @@ trait TimeVariants {
    * range: [min, max]. Shrinks toward min.
    */
   final def offsetDateTime(min: OffsetDateTime, max: OffsetDateTime)(implicit
-    trace: Trace
+                                                                     trace: Trace
   ): Gen[Any, OffsetDateTime] = {
 
     def genLocalDateTime(min: OffsetDateTime, max: OffsetDateTime): Gen[Any, LocalDateTime] = {
@@ -176,17 +176,25 @@ trait TimeVariants {
     }
 
     def genOffset(min: OffsetDateTime, max: OffsetDateTime, actual: LocalDateTime): Gen[Any, ZoneOffset] = {
-      val minLocalDate     = min.atZoneSimilarLocal(utc).toLocalDate
-      val maxLocalDate     = max.atZoneSimilarLocal(utc).toLocalDate
-      val actualLocalDate  = actual.toLocalDate
-      val minOffsetSeconds = if (minLocalDate == actualLocalDate) min.getOffset.getTotalSeconds else -18 * 3600
-      val maxOffsetSeconds = if (maxLocalDate == actualLocalDate) max.getOffset.getTotalSeconds else 18 * 3600
-      Gen.int(minOffsetSeconds, maxOffsetSeconds).map(ZoneOffset.ofTotalSeconds)
+      val minLocalDate = min.atZoneSimilarLocal(utc).toLocalDate
+      val maxLocalDate = max.atZoneSimilarLocal(utc).toLocalDate
+      val actualLocalDate = actual.toLocalDate
+      val zoneOffsetMin = -18 * 3600
+      val zoneOffsetMax = 18 * 3600
+      val minOffsetSeconds = if (minLocalDate == actualLocalDate) min.getOffset.getTotalSeconds else zoneOffsetMin
+      val maxOffsetSeconds = if (maxLocalDate == actualLocalDate) max.getOffset.getTotalSeconds else zoneOffsetMax
+      if (minOffsetSeconds > maxOffsetSeconds) {
+        val secondsAfterMin = (min.toInstant.toEpochMilli - actual.toInstant(utc).toEpochMilli) / 1000
+        val secondsBeforeMax = (max.toInstant.toEpochMilli - actual.toInstant(utc).toEpochMilli) / 1000
+        Gen.int(Math.max(secondsAfterMin.toInt, zoneOffsetMin), Math.min(secondsBeforeMax.toInt, zoneOffsetMax)).map(ZoneOffset.ofTotalSeconds)
+      } else {
+        Gen.int(minOffsetSeconds, maxOffsetSeconds).map(ZoneOffset.ofTotalSeconds)
+      }
     }
 
     for {
       localDateTime <- genLocalDateTime(min, max)
-      offset        <- genOffset(min, max, localDateTime)
+      offset <- genOffset(min, max, localDateTime)
     } yield OffsetDateTime.of(localDateTime, offset)
   }
 
